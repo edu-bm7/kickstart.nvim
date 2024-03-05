@@ -90,6 +90,10 @@ P.S. You can delete this when you're done too. It's your config now! :)
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
+-- 42 Header Globals
+vim.g.user42 = 'ebezerra'
+vim.g.mail42 = 'ebezerra@student.42sp.org.br'
+
 -- [[ Setting options ]]
 -- See `:help vim.opt`
 -- NOTE: You can change these options as you wish!
@@ -99,7 +103,7 @@ vim.g.maplocalleader = ' '
 vim.opt.number = true
 -- You can also add relative line numbers, for help with jumping.
 --  Experiment for yourself to see if you like it!
--- vim.opt.relativenumber = true
+vim.opt.relativenumber = true
 
 -- Enable mouse mode, can be useful for resizing splits for example!
 vim.opt.mouse = 'a'
@@ -114,6 +118,17 @@ vim.opt.clipboard = 'unnamedplus'
 
 -- Enable break indent
 vim.opt.breakindent = true
+
+-- Tabs configs
+vim.opt.expandtab = false
+-- 42SP Tabs Config == false
+vim.opt.tabstop = 4
+vim.opt.shiftwidth = 4
+vim.opt.softtabstop = 4
+
+-- 80 char Column
+vim.opt.colorcolumn = '80'
+vim.cmd [[hi ColorColumn guibg=#2D3343 ]]
 
 -- Save undo history
 vim.opt.undofile = true
@@ -142,11 +157,17 @@ vim.opt.listchars = { tab = '» ', trail = '·', nbsp = '␣' }
 -- Preview substitutions live, as you type!
 vim.opt.inccommand = 'split'
 
+-- Set completeopt to have a better completion experience
+vim.opt.completeopt = 'menuone,noselect'
+
 -- Show which line your cursor is on
 vim.opt.cursorline = true
 
 -- Minimal number of screen lines to keep above and below the cursor.
 vim.opt.scrolloff = 10
+
+-- NOTE: You should make sure your terminal supports this
+vim.opt.termguicolors = true
 
 -- [[ Basic Keymaps ]]
 --  See `:help vim.keymap.set()`
@@ -170,10 +191,10 @@ vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagn
 vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
 
 -- TIP: Disable arrow keys in normal mode
--- vim.keymap.set('n', '<left>', '<cmd>echo "Use h to move!!"<CR>')
--- vim.keymap.set('n', '<right>', '<cmd>echo "Use l to move!!"<CR>')
--- vim.keymap.set('n', '<up>', '<cmd>echo "Use k to move!!"<CR>')
--- vim.keymap.set('n', '<down>', '<cmd>echo "Use j to move!!"<CR>')
+vim.keymap.set('n', '<left>', '<cmd>echo "Use h to move!!"<CR>')
+vim.keymap.set('n', '<right>', '<cmd>echo "Use l to move!!"<CR>')
+vim.keymap.set('n', '<up>', '<cmd>echo "Use k to move!!"<CR>')
+vim.keymap.set('n', '<down>', '<cmd>echo "Use j to move!!"<CR>')
 
 -- Keybinds to make split navigation easier.
 --  Use CTRL+<hjkl> to switch between windows
@@ -221,6 +242,11 @@ vim.opt.rtp:prepend(lazypath)
 require('lazy').setup {
   -- NOTE: Plugins can be added with a link (or for a github repo: 'owner/repo' link).
   'tpope/vim-sleuth', -- Detect tabstop and shiftwidth automatically
+  -- 42Header
+  '42Paris/42header',
+  -- Git related plugins
+  'tpope/vim-fugitive',
+  'tpope/vim-rhubarb',
 
   -- NOTE: Plugins can also be added by using a table,
   -- with the first argument being the link and the following
@@ -249,6 +275,66 @@ require('lazy').setup {
         topdelete = { text = '‾' },
         changedelete = { text = '~' },
       },
+      on_attach = function(bufnr)
+        local gs = package.loaded.gitsigns
+
+        local function map(mode, l, r, opts)
+          opts = opts or {}
+          opts.buffer = bufnr
+          vim.keymap.set(mode, l, r, opts)
+        end
+
+        -- Navigation
+        map({ 'n', 'v' }, ']c', function()
+          if vim.wo.diff then
+            return ']c'
+          end
+          vim.schedule(function()
+            gs.next_hunk()
+          end)
+          return '<Ignore>'
+        end, { expr = true, desc = 'Jump to next hunk' })
+
+        map({ 'n', 'v' }, '[c', function()
+          if vim.wo.diff then
+            return '[c'
+          end
+          vim.schedule(function()
+            gs.prev_hunk()
+          end)
+          return '<Ignore>'
+        end, { expr = true, desc = 'Jump to previous hunk' })
+
+        -- Actions
+        -- visual mode
+        map('v', '<leader>hs', function()
+          gs.stage_hunk { vim.fn.line '.', vim.fn.line 'v' }
+        end, { desc = 'stage git hunk' })
+        map('v', '<leader>hr', function()
+          gs.reset_hunk { vim.fn.line '.', vim.fn.line 'v' }
+        end, { desc = 'reset git hunk' })
+        -- normal mode
+        map('n', '<leader>hs', gs.stage_hunk, { desc = 'git stage hunk' })
+        map('n', '<leader>hr', gs.reset_hunk, { desc = 'git reset hunk' })
+        map('n', '<leader>hS', gs.stage_buffer, { desc = 'git Stage buffer' })
+        map('n', '<leader>hu', gs.undo_stage_hunk, { desc = 'undo stage hunk' })
+        map('n', '<leader>hR', gs.reset_buffer, { desc = 'git Reset buffer' })
+        map('n', '<leader>hp', gs.preview_hunk, { desc = 'preview git hunk' })
+        map('n', '<leader>hb', function()
+          gs.blame_line { full = false }
+        end, { desc = 'git blame line' })
+        map('n', '<leader>hd', gs.diffthis, { desc = 'git diff against index' })
+        map('n', '<leader>hD', function()
+          gs.diffthis '~'
+        end, { desc = 'git diff against last commit' })
+
+        -- Toggles
+        map('n', '<leader>tb', gs.toggle_current_line_blame, { desc = 'toggle git blame line' })
+        map('n', '<leader>td', gs.toggle_deleted, { desc = 'toggle git show deleted' })
+
+        -- Text object
+        map({ 'o', 'x' }, 'ih', ':<C-U>Gitsigns select_hunk<CR>', { desc = 'select git hunk' })
+      end,
     },
   },
 
@@ -277,8 +363,10 @@ require('lazy').setup {
       require('which-key').register {
         ['<leader>c'] = { name = '[C]ode', _ = 'which_key_ignore' },
         ['<leader>d'] = { name = '[D]ocument', _ = 'which_key_ignore' },
+        ['<leader>h'] = { name = 'Git [H]unk', _ = 'which_key_ignore' },
         ['<leader>r'] = { name = '[R]ename', _ = 'which_key_ignore' },
         ['<leader>s'] = { name = '[S]earch', _ = 'which_key_ignore' },
+        ['<leader>t'] = { name = '[T]oggle', _ = 'which_key_ignore' },
         ['<leader>w'] = { name = '[W]orkspace', _ = 'which_key_ignore' },
       }
     end,
@@ -315,7 +403,7 @@ require('lazy').setup {
       -- Useful for getting pretty icons, but requires special font.
       --  If you already have a Nerd Font, or terminal set up with fallback fonts
       --  you can enable this
-      -- { 'nvim-tree/nvim-web-devicons' }
+      { 'nvim-tree/nvim-web-devicons' },
     },
     config = function()
       -- Telescope is a fuzzy finder that comes with a lot of different things that
@@ -531,10 +619,12 @@ require('lazy').setup {
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local servers = {
-        -- clangd = {},
-        -- gopls = {},
-        -- pyright = {},
-        -- rust_analyzer = {},
+        clangd = {},
+        gopls = {},
+        pyright = {},
+        rust_analyzer = {},
+        tsserver = {},
+        html = { filetypes = { 'html', 'twig', 'hbs' } },
         -- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
         --
         -- Some languages (like typescript) have entire language plugins that can be useful:
@@ -585,6 +675,32 @@ require('lazy').setup {
       local ensure_installed = vim.tbl_keys(servers or {})
       vim.list_extend(ensure_installed, {
         'stylua', -- Used to format lua code
+        'clangd',
+        'clang-format',
+        'codelldb',
+        'chrome-debug-adapter',
+        'cmakelang',
+        'css-lsp',
+        'debugpy',
+        'delve',
+        'eslint-lsp',
+        'eslint_d',
+        'gopls',
+        'html-lsp',
+        'htmlhint',
+        'js-debug-adapter',
+        'lua-language-server',
+        'prettier',
+        'pylint',
+        'pyright',
+        'rust_analyzer',
+        'shellcheck',
+        'shellharden',
+        'sonarlint-language-server',
+        'stylelint',
+        'typescript-language-server',
+        'tailwindcss-language-server',
+        'bash-language-server',
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
@@ -618,7 +734,10 @@ require('lazy').setup {
         --
         -- You can use a sub-list to tell conform to run *until* a formatter
         -- is found.
-        -- javascript = { { "prettierd", "prettier" } },
+        javascript = { { 'prettierd', 'prettier' } },
+        html = { { 'prettierd', 'prettier' } },
+        c = { 'clang-format' },
+        cpp = { 'clang-format' },
       },
     },
   },
@@ -721,20 +840,28 @@ require('lazy').setup {
     -- change the command in the config to whatever the name of that colorscheme is
     --
     -- If you want to see what colorschemes are already installed, you can use `:Telescope colorscheme`
-    'folke/tokyonight.nvim',
+    'navarasu/onedark.nvim',
     lazy = false, -- make sure we load this during startup if it is your main colorscheme
     priority = 1000, -- make sure to load this before all the other start plugins
     config = function()
+      -- Setup the colorscheme Style
+      require('onedark').setup {
+        style = 'cool',
+      }
       -- Load the colorscheme here
-      vim.cmd.colorscheme 'tokyonight-night'
+      vim.cmd.colorscheme 'onedark'
 
       -- You can configure highlights by doing something like
       vim.cmd.hi 'Comment gui=none'
     end,
   },
-
   -- Highlight todo, notes, etc in comments
-  { 'folke/todo-comments.nvim', event = 'VimEnter', dependencies = { 'nvim-lua/plenary.nvim' }, opts = { signs = false } },
+  {
+    'folke/todo-comments.nvim',
+    event = 'VimEnter',
+    dependencies = { 'nvim-lua/plenary.nvim' },
+    opts = { signs = false },
+  },
 
   { -- Collection of various small independent plugins/modules
     'echasnovski/mini.nvim',
@@ -757,20 +884,34 @@ require('lazy').setup {
       -- Simple and easy statusline.
       --  You could remove this setup call if you don't like it,
       --  and try some other statusline plugin
-      local statusline = require 'mini.statusline'
-      statusline.setup()
+      --local statusline = require("mini.statusline")
+      --statusline.setup()
 
       -- You can configure sections in the statusline by overriding their
       -- default behavior. For example, here we set the section for
       -- cursor location to LINE:COLUMN
       ---@diagnostic disable-next-line: duplicate-set-field
-      statusline.section_location = function()
-        return '%2l:%-2v'
-      end
+      --statusline.section_location = function()
+      --return "%2l:%-2v"
+      --end
 
       -- ... and there is more!
       --  Check out: https://github.com/echasnovski/mini.nvim
     end,
+  },
+
+  -- Lualine as Statusline
+  { -- Set lualine as statusline
+    'nvim-lualine/lualine.nvim',
+    -- See `:help lualine.txt`
+    opts = {
+      options = {
+        icons_enabled = true,
+        theme = 'onedark',
+        component_separators = '|',
+        section_separators = '',
+      },
+    },
   },
 
   { -- Highlight, edit, and navigate code
@@ -781,13 +922,86 @@ require('lazy').setup {
 
       ---@diagnostic disable-next-line: missing-fields
       require('nvim-treesitter.configs').setup {
-        ensure_installed = { 'bash', 'c', 'html', 'lua', 'markdown', 'vim', 'vimdoc' },
+        ensure_installed = {
+          'bash',
+          'c',
+          'cmake',
+          'cpp',
+          'css',
+          'csv',
+          'dockerfile',
+          'go',
+          'html',
+          'javascript',
+          'json',
+          'lua',
+          'make',
+          'markdown',
+          'python',
+          'rust',
+          'tsx',
+          'typescript',
+          'vim',
+          'vimdoc',
+        },
         -- Autoinstall languages that are not installed
         auto_install = true,
         highlight = { enable = true },
         indent = { enable = true },
+        incremental_selection = {
+          enable = true,
+          keymaps = {
+            init_selection = '<c-space>',
+            node_incremental = '<c-space>',
+            scope_incremental = '<c-s>',
+            node_decremental = '<M-space>',
+          },
+        },
+        textobjects = {
+          select = {
+            enable = true,
+            lookahead = true, -- Automatically jump forward to textobj, similar to targets.vim
+            keymaps = {
+              -- You can use the capture groups defined in textobjects.scm
+              ['aa'] = '@parameter.outer',
+              ['ia'] = '@parameter.inner',
+              ['af'] = '@function.outer',
+              ['if'] = '@function.inner',
+              ['ac'] = '@class.outer',
+              ['ic'] = '@class.inner',
+            },
+          },
+          move = {
+            enable = true,
+            set_jumps = true, -- whether to set jumps in the jumplist
+            goto_next_start = {
+              [']m'] = '@function.outer',
+              [']]'] = '@class.outer',
+            },
+            goto_next_end = {
+              [']M'] = '@function.outer',
+              [']['] = '@class.outer',
+            },
+            goto_previous_start = {
+              ['[m'] = '@function.outer',
+              ['[['] = '@class.outer',
+            },
+            goto_previous_end = {
+              ['[M'] = '@function.outer',
+              ['[]'] = '@class.outer',
+            },
+          },
+          swap = {
+            enable = true,
+            swap_next = {
+              ['<leader>a'] = '@parameter.inner',
+            },
+            swap_previous = {
+              ['<leader>A'] = '@parameter.inner',
+            },
+          },
+        },
       }
-
       -- There are additional nvim-treesitter modules that you can use to interact
       -- with nvim-treesitter. You should go explore a few and see what interests you:
       --
@@ -806,8 +1020,9 @@ require('lazy').setup {
   --  Here are some example plugins that I've included in the kickstart repository.
   --  Uncomment any of the lines below to enable them (you will need to restart nvim).
   --
-  -- require 'kickstart.plugins.debug',
-  -- require 'kickstart.plugins.indent_line',
+  require 'kickstart.plugins.debug',
+
+  require 'kickstart.plugins.indent_line',
 
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
   --    This is the easiest way to modularize your config.
